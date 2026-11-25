@@ -1,0 +1,6 @@
+{
+  "name": "YoungAndCode Teaching Manager",
+  "description": "A private teaching management workspace for Mathematics and Technology instruction, featuring student profiles, lesson planning, class documentation, and homework tracking.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

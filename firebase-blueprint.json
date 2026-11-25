@@ -1,0 +1,1016 @@
+{
+  "entities": {
+    "TeacherProfile": {
+      "title": "Teacher Profile",
+      "description": "Private profile and workspace settings for an authenticated teacher.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "email": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 160
+        },
+        "seededDefaults": {
+          "type": "boolean"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["uid", "displayName", "email", "seededDefaults", "createdAt", "updatedAt"]
+    },
+    "Student": {
+      "title": "Student",
+      "description": "A student profile managed by a teacher for Mathematics and/or Technology.",
+      "type": "object",
+      "properties": {
+        "teacherId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "fullName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "subjects": {
+          "type": "array",
+          "description": "Subjects taught to this student (Mathematics, Technology)."
+        },
+        "age": {
+          "type": "string",
+          "maxLength": 20
+        },
+        "grade": {
+          "type": "string",
+          "maxLength": 60
+        },
+        "school": {
+          "type": "string",
+          "maxLength": 160
+        },
+        "ageGroup": {
+          "type": "string",
+          "maxLength": 60
+        },
+        "guardianName": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "teachingNotes": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "learningGoals": {
+          "type": "string",
+          "maxLength": 1500
+        },
+        "progressSummary": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "mathLevel": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "techLevel": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "status": {
+          "type": "string",
+          "enum": ["active", "archived"]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["teacherId", "fullName", "subjects", "status", "createdAt", "updatedAt"]
+    },
+    "LessonPlan": {
+      "title": "Lesson Plan",
+      "description": "A structured lesson plan for a student in Mathematics or Technology.",
+      "type": "object",
+      "properties": {
+        "teacherId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "studentId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "studentName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "subject": {
+          "type": "string",
+          "enum": ["Mathematics", "Technology"]
+        },
+        "topic": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "scheduledDate": {
+          "type": "string",
+          "minLength": 10,
+          "maxLength": 10,
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+        },
+        "scheduledTime": {
+          "type": "string",
+          "maxLength": 20
+        },
+        "durationMinutes": {
+          "type": "number"
+        },
+        "learningObjectives": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "previousKnowledge": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "lessonIntroduction": {
+          "type": "string",
+          "maxLength": 2500
+        },
+        "teachingMaterials": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "activities": {
+          "type": "string",
+          "maxLength": 4000
+        },
+        "practicalExercises": {
+          "type": "string",
+          "maxLength": 2500
+        },
+        "classwork": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "homework": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "expectedOutcomes": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "status": {
+          "type": "string",
+          "enum": ["draft", "scheduled", "upcoming", "completed", "cancelled"]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "teacherId",
+        "studentId",
+        "studentName",
+        "subject",
+        "topic",
+        "scheduledDate",
+        "learningObjectives",
+        "activities",
+        "status",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "ClassReport": {
+      "title": "Class Report",
+      "description": "Live class documentation, saved drafts, and completed class session reports.",
+      "type": "object",
+      "properties": {
+        "teacherId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "studentId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "studentName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "subject": {
+          "type": "string",
+          "enum": ["Mathematics", "Technology"]
+        },
+        "lessonPlanId": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "topic": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "sessionDate": {
+          "type": "string",
+          "minLength": 10,
+          "maxLength": 10,
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+        },
+        "durationMinutes": {
+          "type": "number"
+        },
+        "startedAtIso": {
+          "type": "string",
+          "maxLength": 40
+        },
+        "objectivesCovered": {
+          "type": "string",
+          "maxLength": 2500
+        },
+        "conceptsTaught": {
+          "type": "string",
+          "maxLength": 3000
+        },
+        "activitiesCompleted": {
+          "type": "string",
+          "maxLength": 3500
+        },
+        "practicalExercisesPerformed": {
+          "type": "string",
+          "maxLength": 2500
+        },
+        "classworkGiven": {
+          "type": "string",
+          "maxLength": 2500
+        },
+        "studentParticipation": {
+          "type": "string",
+          "maxLength": 2500
+        },
+        "understoodWell": {
+          "type": "string",
+          "maxLength": 2500
+        },
+        "struggledWith": {
+          "type": "string",
+          "maxLength": 2500
+        },
+        "challengesEncountered": {
+          "type": "string",
+          "maxLength": 2500
+        },
+        "homeworkAssigned": {
+          "type": "string",
+          "maxLength": 2500
+        },
+        "teacherObservations": {
+          "type": "string",
+          "maxLength": 3000
+        },
+        "recommendationsNextFocus": {
+          "type": "string",
+          "maxLength": 2500
+        },
+        "notes": {
+          "type": "string",
+          "maxLength": 5000
+        },
+        "progressNotes": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "understandingLevel": {
+          "type": "string",
+          "enum": ["developing", "steady", "strong", "mastered"]
+        },
+        "status": {
+          "type": "string",
+          "enum": ["in_progress", "draft", "completed"]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "teacherId",
+        "studentId",
+        "studentName",
+        "subject",
+        "topic",
+        "sessionDate",
+        "durationMinutes",
+        "understandingLevel",
+        "status",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "Homework": {
+      "title": "Homework",
+      "description": "Homework assignment, supporting resources, student submission, and teacher assessment tracked for a student.",
+      "type": "object",
+      "properties": {
+        "teacherId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "studentId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "studentName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "subject": {
+          "type": "string",
+          "enum": ["Mathematics", "Technology"]
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "instructions": {
+          "type": "string",
+          "maxLength": 3000
+        },
+        "questionsOrTasks": {
+          "type": "string",
+          "maxLength": 4000
+        },
+        "assignedDate": {
+          "type": "string",
+          "maxLength": 10,
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+        },
+        "dueDate": {
+          "type": "string",
+          "minLength": 10,
+          "maxLength": 10,
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["assigned", "submitted", "under_review", "completed", "overdue", "pending", "reviewed"]
+        },
+        "supportingLinks": {
+          "type": "array",
+          "description": "Up to 10 supporting links (Google Docs, Miro boards, YouTube videos, worksheets, or external links)."
+        },
+        "lessonPlanId": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "classReportId": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "submittedDate": {
+          "type": "string",
+          "maxLength": 10
+        },
+        "studentWorkSummary": {
+          "type": "string",
+          "maxLength": 4000
+        },
+        "submissionLinks": {
+          "type": "array",
+          "description": "Up to 10 uploaded work or supporting links submitted by the student."
+        },
+        "score": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "feedback": {
+          "type": "string",
+          "maxLength": 2500
+        },
+        "areasForImprovement": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "teacherId",
+        "studentId",
+        "studentName",
+        "subject",
+        "title",
+        "dueDate",
+        "status",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "Resource": {
+      "title": "Student Resource",
+      "description": "Curated learning resource attached to a student profile.",
+      "type": "object",
+      "properties": {
+        "teacherId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "studentId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "subject": {
+          "type": "string",
+          "enum": ["Mathematics", "Technology"]
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "resourceType": {
+          "type": "string",
+          "enum": ["worksheet", "link", "guide", "exercise"]
+        },
+        "url": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "notes": {
+          "type": "string",
+          "maxLength": 1000
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "teacherId",
+        "studentId",
+        "subject",
+        "title",
+        "resourceType",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "ApprovedAiReport": {
+      "title": "Approved AI Class Report",
+      "description": "Teacher-reviewed and approved structured class report generated with Gemini AI from a saved class documentation record.",
+      "type": "object",
+      "properties": {
+        "teacherId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "studentId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "classReportId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "studentName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "subject": {
+          "type": "string",
+          "enum": ["Mathematics", "Technology"]
+        },
+        "lessonTopic": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "dateAndDuration": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "sessionDate": {
+          "type": "string",
+          "minLength": 10,
+          "maxLength": 10,
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+        },
+        "learningObjectivesCovered": {
+          "type": "string",
+          "maxLength": 3000
+        },
+        "conceptsTaught": {
+          "type": "string",
+          "maxLength": 3500
+        },
+        "activitiesAndExercisesCompleted": {
+          "type": "string",
+          "maxLength": 4500
+        },
+        "studentParticipation": {
+          "type": "string",
+          "maxLength": 3000
+        },
+        "demonstratedUnderstanding": {
+          "type": "string",
+          "maxLength": 3000
+        },
+        "areasRequiringImprovement": {
+          "type": "string",
+          "maxLength": 3000
+        },
+        "challengesEncountered": {
+          "type": "string",
+          "maxLength": 3000
+        },
+        "homeworkAssigned": {
+          "type": "string",
+          "maxLength": 3000
+        },
+        "teacherObservations": {
+          "type": "string",
+          "maxLength": 3500
+        },
+        "recommendedNextSteps": {
+          "type": "string",
+          "maxLength": 3000
+        },
+        "status": {
+          "type": "string",
+          "enum": ["approved"]
+        },
+        "approvedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "teacherId",
+        "studentId",
+        "classReportId",
+        "studentName",
+        "subject",
+        "lessonTopic",
+        "dateAndDuration",
+        "sessionDate",
+        "status",
+        "approvedAt",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "MonthlyReport": {
+      "title": "Monthly Academic Progress Report",
+      "description": "Teacher-reviewed monthly academic progress report synthesized from saved completed classes, approved AI reports, lesson plans, and homework records.",
+      "type": "object",
+      "properties": {
+        "teacherId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "studentId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "studentName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "gradeAndAge": {
+          "type": "string",
+          "maxLength": 160
+        },
+        "monthKey": {
+          "type": "string",
+          "minLength": 7,
+          "maxLength": 7,
+          "pattern": "^[0-9]{4}-[0-9]{2}$"
+        },
+        "reportYear": {
+          "type": "number"
+        },
+        "reportMonth": {
+          "type": "number"
+        },
+        "reportingMonthLabel": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 40
+        },
+        "subjectsCovered": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "completedClassesCount": {
+          "type": "number"
+        },
+        "approvedAiReportsCount": {
+          "type": "number"
+        },
+        "totalInstructionMinutes": {
+          "type": "number"
+        },
+        "homeworkAssignedCount": {
+          "type": "number"
+        },
+        "homeworkCompletedCount": {
+          "type": "number"
+        },
+        "homeworkOutstandingCount": {
+          "type": "number"
+        },
+        "topicsCovered": {
+          "type": "string",
+          "maxLength": 3500
+        },
+        "skillsAndConceptsIntroduced": {
+          "type": "string",
+          "maxLength": 3500
+        },
+        "practicalActivitiesAndProjects": {
+          "type": "string",
+          "maxLength": 4000
+        },
+        "learningObjectivesAchieved": {
+          "type": "string",
+          "maxLength": 3500
+        },
+        "conceptUnderstanding": {
+          "type": "string",
+          "maxLength": 3500
+        },
+        "applicationOfLearning": {
+          "type": "string",
+          "maxLength": 3500
+        },
+        "participationAndEngagement": {
+          "type": "string",
+          "maxLength": 3000
+        },
+        "areasOfStrength": {
+          "type": "string",
+          "maxLength": 3500
+        },
+        "areasRequiringDevelopment": {
+          "type": "string",
+          "maxLength": 3500
+        },
+        "subjectAssessments": {
+          "type": "array",
+          "maxItems": 2,
+          "items": {
+            "type": "object",
+            "properties": {
+              "subject": {
+                "type": "string",
+                "enum": ["Mathematics", "Technology"]
+              },
+              "classesCompletedCount": {
+                "type": "number"
+              },
+              "criteriaFocus": {
+                "type": "string",
+                "maxLength": 500
+              },
+              "coverageSummary": {
+                "type": "string",
+                "maxLength": 2500
+              },
+              "performanceAssessment": {
+                "type": "string",
+                "maxLength": 2500
+              },
+              "nextSubjectFocus": {
+                "type": "string",
+                "maxLength": 2000
+              }
+            }
+          }
+        },
+        "homeworkAssignedSummary": {
+          "type": "string",
+          "maxLength": 3500
+        },
+        "homeworkCompletionStatus": {
+          "type": "string",
+          "maxLength": 3500
+        },
+        "assessmentResultsAndFeedback": {
+          "type": "string",
+          "maxLength": 3500
+        },
+        "specificDifficultiesObserved": {
+          "type": "string",
+          "maxLength": 3500
+        },
+        "conceptsNeedingRevision": {
+          "type": "string",
+          "maxLength": 3000
+        },
+        "skillsRequiringPractice": {
+          "type": "string",
+          "maxLength": 3000
+        },
+        "overallMonthlyAssessment": {
+          "type": "string",
+          "maxLength": 3500
+        },
+        "progressMadeDuringMonth": {
+          "type": "string",
+          "maxLength": 3500
+        },
+        "recommendedTeachingApproachAndTargets": {
+          "type": "string",
+          "maxLength": 3500
+        },
+        "conclusion": {
+          "type": "string",
+          "maxLength": 3000
+        },
+        "status": {
+          "type": "string",
+          "enum": ["draft", "approved"]
+        },
+        "approvedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "teacherId",
+        "studentId",
+        "studentName",
+        "monthKey",
+        "reportYear",
+        "reportMonth",
+        "reportingMonthLabel",
+        "subjectsCovered",
+        "completedClassesCount",
+        "approvedAiReportsCount",
+        "totalInstructionMinutes",
+        "homeworkAssignedCount",
+        "homeworkCompletedCount",
+        "homeworkOutstandingCount",
+        "status",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "Integration": {
+      "title": "Teacher Integration",
+      "description": "Connected or custom external teaching application metadata owned by the teacher. Never stores secrets, passwords, API keys, or OAuth tokens.",
+      "type": "object",
+      "properties": {
+        "teacherId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "catalogId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "isCustom": {
+          "type": "boolean"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 600
+        },
+        "category": {
+          "type": "string",
+          "enum": [
+            "video_conferencing",
+            "lms",
+            "ai_tools",
+            "documents_storage",
+            "math_whiteboards",
+            "coding_tools",
+            "design_creativity",
+            "communication",
+            "assessment_quizzes",
+            "file_sharing",
+            "productivity_scheduling",
+            "other"
+          ]
+        },
+        "iconKey": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 40,
+          "pattern": "^[a-z0-9_\\-]+$"
+        },
+        "accentColor": {
+          "type": "string",
+          "enum": ["blue", "indigo", "violet", "teal", "emerald", "orange", "amber", "rose", "slate"]
+        },
+        "websiteUrl": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "loginUrl": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "apiDocsUrl": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "integrationMethod": {
+          "type": "string",
+          "enum": ["direct_link", "oauth", "api", "webhook", "custom"]
+        },
+        "supportedMethods": {
+          "type": "array",
+          "description": "Supported connection methods for this application (1 to 5 entries)."
+        },
+        "status": {
+          "type": "string",
+          "enum": ["connected", "disconnected", "configuration_required"]
+        },
+        "usageNotes": {
+          "type": "string",
+          "maxLength": 1500
+        },
+        "permissionsSummary": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "connectedAtIso": {
+          "type": "string",
+          "maxLength": 40
+        },
+        "lastSyncedAtIso": {
+          "type": "string",
+          "maxLength": 40
+        },
+        "pinnedToQuickLaunch": {
+          "type": "boolean"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "teacherId",
+        "catalogId",
+        "isCustom",
+        "name",
+        "category",
+        "iconKey",
+        "accentColor",
+        "integrationMethod",
+        "supportedMethods",
+        "status",
+        "createdAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/teachers/{teacherId}": {
+      "schema": { "$ref": "#/entities/TeacherProfile" },
+      "description": "Private teacher profile document keyed by Firebase Auth UID."
+    },
+    "/students/{studentId}": {
+      "schema": { "$ref": "#/entities/Student" },
+      "description": "Students managed by the teacher."
+    },
+    "/lessonPlans/{planId}": {
+      "schema": { "$ref": "#/entities/LessonPlan" },
+      "description": "Lesson plans created by the teacher for specific students."
+    },
+    "/classReports/{reportId}": {
+      "schema": { "$ref": "#/entities/ClassReport" },
+      "description": "Live class sessions and completed class reports."
+    },
+    "/aiReports/{aiReportId}": {
+      "schema": { "$ref": "#/entities/ApprovedAiReport" },
+      "description": "Teacher-approved AI-generated class reports linked to class documentation and student profiles."
+    },
+    "/homework/{homeworkId}": {
+      "schema": { "$ref": "#/entities/Homework" },
+      "description": "Homework assignments and review status for students."
+    },
+    "/resources/{resourceId}": {
+      "schema": { "$ref": "#/entities/Resource" },
+      "description": "Learning resources attached to student profiles."
+    },
+    "/monthlyReports/{monthlyReportId}": {
+      "schema": { "$ref": "#/entities/MonthlyReport" },
+      "description": "Monthly academic progress reports (drafts and approved) per student and reporting month."
+    },
+    "/integrations/{integrationId}": {
+      "schema": { "$ref": "#/entities/Integration" },
+      "description": "Connected and custom external teaching applications managed by the teacher."
+    }
+  }
+}

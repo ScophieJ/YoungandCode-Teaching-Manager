@@ -1,0 +1,839 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global default-deny safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Primitive Helpers ---
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwnerId(uid) {
+      return isVerifiedUser() && request.auth.uid == uid;
+    }
+
+    function isValidDateStr(d) {
+      return d is string && d.size() == 10 && d.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$');
+    }
+
+    function isValidMonthKey(m) {
+      return m is string && m.size() == 7 && m.matches('^[0-9]{4}-[0-9]{2}$');
+    }
+
+    function isValidOptDateStr(data, key) {
+      return !(key in data) || data[key] == '' || isValidDateStr(data[key]);
+    }
+
+    function isValidOptId(data, key) {
+      return !(key in data) || data[key] == '' || isValidId(data[key]);
+    }
+
+    function isValidSubject(s) {
+      return s is string && s.size() >= 1 && s.size() <= 20 && s in ['Mathematics', 'Technology'];
+    }
+
+    function isValidOptString(data, key, maxLen) {
+      return !(key in data) || (data[key] is string && data[key].size() <= maxLen);
+    }
+
+    function isValidOptDuration(data, key, minVal, maxVal) {
+      return !(key in data) || ((data[key] is int || data[key] is float) && data[key] >= minVal && data[key] <= maxVal);
+    }
+
+    function isValidIntRange(val, minVal, maxVal) {
+      return (val is int || val is float) && val >= minVal && val <= maxVal;
+    }
+
+    function isValidHomeworkLinkList(data, key) {
+      return !(key in data) || (
+        data[key] is list
+        && data[key].size() <= 10
+        && (
+          data[key].size() == 0
+          || (
+            data[key][0] is map
+            && data[key][0].keys().hasAll(['title', 'url', 'kind'])
+            && data[key][0].keys().hasOnly(['title', 'url', 'kind'])
+            && data[key][0].title is string && data[key][0].title.size() >= 1 && data[key][0].title.size() <= 160
+            && data[key][0].url is string && data[key][0].url.size() >= 8 && data[key][0].url.size() <= 500
+            && data[key][0].kind is string && data[key][0].kind in ['google_doc', 'miro', 'youtube', 'worksheet', 'other']
+          )
+        )
+      );
+    }
+
+    function isValidSubjectAssessmentItem(item) {
+      return item is map
+        && item.keys().hasAll([
+          'subject', 'classesCompletedCount', 'criteriaFocus',
+          'coverageSummary', 'performanceAssessment', 'nextSubjectFocus'
+        ])
+        && item.keys().hasOnly([
+          'subject', 'classesCompletedCount', 'criteriaFocus',
+          'coverageSummary', 'performanceAssessment', 'nextSubjectFocus'
+        ])
+        && isValidSubject(item.subject)
+        && isValidIntRange(item.classesCompletedCount, 0, 200)
+        && item.criteriaFocus is string && item.criteriaFocus.size() <= 500
+        && item.coverageSummary is string && item.coverageSummary.size() <= 2500
+        && item.performanceAssessment is string && item.performanceAssessment.size() <= 2500
+        && item.nextSubjectFocus is string && item.nextSubjectFocus.size() <= 2000;
+    }
+
+    function isValidSubjectAssessmentsList(data, key) {
+      return !(key in data) || (
+        data[key] is list
+        && data[key].size() <= 2
+        && (data[key].size() == 0 || isValidSubjectAssessmentItem(data[key][0]))
+        && (data[key].size() <= 1 || isValidSubjectAssessmentItem(data[key][1]))
+      );
+    }
+
+    function isValidOptHttpUrl(data, key) {
+      return !(key in data)
+        || data[key] == ''
+        || (
+          data[key] is string
+          && data[key].size() >= 8
+          && data[key].size() <= 500
+          && data[key].matches('^https?://.+')
+        );
+    }
+
+    function isValidIntegrationCategory(c) {
+      return c is string && c in [
+        'video_conferencing',
+        'lms',
+        'ai_tools',
+        'documents_storage',
+        'math_whiteboards',
+        'coding_tools',
+        'design_creativity',
+        'communication',
+        'assessment_quizzes',
+        'file_sharing',
+        'productivity_scheduling',
+        'other'
+      ];
+    }
+
+    function isValidIntegrationMethod(m) {
+      return m is string && m in ['direct_link', 'oauth', 'api', 'webhook', 'custom'];
+    }
+
+    function ownsStudent(studentId) {
+      return isValidId(studentId)
+        && exists(/databases/$(database)/documents/students/$(studentId))
+        && get(/databases/$(database)/documents/students/$(studentId)).data.teacherId == request.auth.uid;
+    }
+
+    function ownsClassReport(classReportId) {
+      return isValidId(classReportId)
+        && exists(/databases/$(database)/documents/classReports/$(classReportId))
+        && get(/databases/$(database)/documents/classReports/$(classReportId)).data.teacherId == request.auth.uid;
+    }
+
+    // --- Entity Validation Blueprints ---
+    function isValidTeacherProfile(data) {
+      return data.keys().hasAll(['uid', 'displayName', 'email', 'seededDefaults', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'displayName', 'email', 'seededDefaults', 'createdAt', 'updatedAt'])
+        && isValidId(data.uid)
+        && data.uid == request.auth.uid
+        && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 120
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 160
+        && data.seededDefaults is bool
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidStudent(data) {
+      return data.keys().hasAll(['teacherId', 'fullName', 'subjects', 'status', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly([
+          'teacherId', 'fullName', 'subjects', 'age', 'grade', 'school',
+          'ageGroup', 'guardianName', 'teachingNotes', 'learningGoals',
+          'progressSummary', 'mathLevel', 'techLevel',
+          'status', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.teacherId)
+        && data.teacherId == request.auth.uid
+        && data.fullName is string && data.fullName.size() >= 1 && data.fullName.size() <= 120
+        && data.subjects is list && data.subjects.size() >= 1 && data.subjects.size() <= 2
+        && data.subjects[0] is string
+        && data.subjects.hasOnly(['Mathematics', 'Technology'])
+        && isValidOptString(data, 'age', 20)
+        && isValidOptString(data, 'grade', 60)
+        && isValidOptString(data, 'school', 160)
+        && isValidOptString(data, 'ageGroup', 60)
+        && isValidOptString(data, 'guardianName', 120)
+        && isValidOptString(data, 'teachingNotes', 2000)
+        && isValidOptString(data, 'learningGoals', 1500)
+        && isValidOptString(data, 'progressSummary', 2000)
+        && isValidOptString(data, 'mathLevel', 120)
+        && isValidOptString(data, 'techLevel', 120)
+        && data.status is string && data.status.size() >= 1 && data.status.size() <= 20
+        && data.status in ['active', 'archived']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidLessonPlan(data) {
+      return data.keys().hasAll([
+          'teacherId', 'studentId', 'studentName', 'subject', 'topic',
+          'scheduledDate', 'learningObjectives', 'activities', 'status',
+          'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'teacherId', 'studentId', 'studentName', 'subject', 'topic',
+          'scheduledDate', 'scheduledTime', 'durationMinutes',
+          'learningObjectives', 'previousKnowledge', 'lessonIntroduction',
+          'teachingMaterials', 'activities', 'practicalExercises',
+          'classwork', 'homework', 'expectedOutcomes',
+          'status', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.teacherId)
+        && data.teacherId == request.auth.uid
+        && isValidId(data.studentId)
+        && data.studentName is string && data.studentName.size() >= 1 && data.studentName.size() <= 120
+        && isValidSubject(data.subject)
+        && data.topic is string && data.topic.size() >= 1 && data.topic.size() <= 200
+        && isValidDateStr(data.scheduledDate)
+        && isValidOptString(data, 'scheduledTime', 20)
+        && isValidOptDuration(data, 'durationMinutes', 1, 480)
+        && data.learningObjectives is string && data.learningObjectives.size() <= 2000
+        && isValidOptString(data, 'previousKnowledge', 2000)
+        && isValidOptString(data, 'lessonIntroduction', 2500)
+        && isValidOptString(data, 'teachingMaterials', 2000)
+        && data.activities is string && data.activities.size() <= 4000
+        && isValidOptString(data, 'practicalExercises', 2500)
+        && isValidOptString(data, 'classwork', 2000)
+        && isValidOptString(data, 'homework', 2000)
+        && isValidOptString(data, 'expectedOutcomes', 2000)
+        && data.status is string && data.status.size() >= 1 && data.status.size() <= 20
+        && data.status in ['draft', 'scheduled', 'upcoming', 'completed', 'cancelled']
+        && (
+          data.status in ['draft', 'cancelled']
+          || (data.learningObjectives.size() >= 1 && data.activities.size() >= 1)
+        )
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidClassReport(data) {
+      return data.keys().hasAll([
+          'teacherId', 'studentId', 'studentName', 'subject', 'topic',
+          'sessionDate', 'durationMinutes', 'understandingLevel', 'status',
+          'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'teacherId', 'studentId', 'studentName', 'subject', 'lessonPlanId',
+          'topic', 'sessionDate', 'durationMinutes', 'startedAtIso',
+          'objectivesCovered', 'conceptsTaught', 'activitiesCompleted',
+          'practicalExercisesPerformed', 'classworkGiven', 'studentParticipation',
+          'understoodWell', 'struggledWith', 'challengesEncountered',
+          'homeworkAssigned', 'teacherObservations', 'recommendationsNextFocus',
+          'notes', 'progressNotes', 'understandingLevel', 'status',
+          'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.teacherId)
+        && data.teacherId == request.auth.uid
+        && isValidId(data.studentId)
+        && data.studentName is string && data.studentName.size() >= 1 && data.studentName.size() <= 120
+        && isValidSubject(data.subject)
+        && isValidOptString(data, 'lessonPlanId', 128)
+        && data.topic is string && data.topic.size() >= 1 && data.topic.size() <= 200
+        && isValidDateStr(data.sessionDate)
+        && (data.durationMinutes is int || data.durationMinutes is float)
+        && data.durationMinutes >= 0 && data.durationMinutes <= 480
+        && isValidOptString(data, 'startedAtIso', 40)
+        && isValidOptString(data, 'objectivesCovered', 2500)
+        && isValidOptString(data, 'conceptsTaught', 3000)
+        && isValidOptString(data, 'activitiesCompleted', 3500)
+        && isValidOptString(data, 'practicalExercisesPerformed', 2500)
+        && isValidOptString(data, 'classworkGiven', 2500)
+        && isValidOptString(data, 'studentParticipation', 2500)
+        && isValidOptString(data, 'understoodWell', 2500)
+        && isValidOptString(data, 'struggledWith', 2500)
+        && isValidOptString(data, 'challengesEncountered', 2500)
+        && isValidOptString(data, 'homeworkAssigned', 2500)
+        && isValidOptString(data, 'teacherObservations', 3000)
+        && isValidOptString(data, 'recommendationsNextFocus', 2500)
+        && isValidOptString(data, 'notes', 5000)
+        && isValidOptString(data, 'progressNotes', 2000)
+        && data.understandingLevel is string && data.understandingLevel.size() >= 1 && data.understandingLevel.size() <= 20
+        && data.understandingLevel in ['developing', 'steady', 'strong', 'mastered']
+        && data.status is string && data.status.size() >= 1 && data.status.size() <= 20
+        && data.status in ['in_progress', 'draft', 'completed']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidApprovedAiReport(data) {
+      return data.keys().hasAll([
+          'teacherId', 'studentId', 'classReportId', 'studentName', 'subject',
+          'lessonTopic', 'dateAndDuration', 'sessionDate', 'status',
+          'approvedAt', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'teacherId', 'studentId', 'classReportId', 'studentName', 'subject',
+          'lessonTopic', 'dateAndDuration', 'sessionDate',
+          'learningObjectivesCovered', 'conceptsTaught',
+          'activitiesAndExercisesCompleted', 'studentParticipation',
+          'demonstratedUnderstanding', 'areasRequiringImprovement',
+          'challengesEncountered', 'homeworkAssigned',
+          'teacherObservations', 'recommendedNextSteps',
+          'status', 'approvedAt', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.teacherId)
+        && data.teacherId == request.auth.uid
+        && isValidId(data.studentId)
+        && isValidId(data.classReportId)
+        && data.studentName is string && data.studentName.size() >= 1 && data.studentName.size() <= 120
+        && isValidSubject(data.subject)
+        && data.lessonTopic is string && data.lessonTopic.size() >= 1 && data.lessonTopic.size() <= 200
+        && data.dateAndDuration is string && data.dateAndDuration.size() >= 1 && data.dateAndDuration.size() <= 120
+        && isValidDateStr(data.sessionDate)
+        && isValidOptString(data, 'learningObjectivesCovered', 3000)
+        && isValidOptString(data, 'conceptsTaught', 3500)
+        && isValidOptString(data, 'activitiesAndExercisesCompleted', 4500)
+        && isValidOptString(data, 'studentParticipation', 3000)
+        && isValidOptString(data, 'demonstratedUnderstanding', 3000)
+        && isValidOptString(data, 'areasRequiringImprovement', 3000)
+        && isValidOptString(data, 'challengesEncountered', 3000)
+        && isValidOptString(data, 'homeworkAssigned', 3000)
+        && isValidOptString(data, 'teacherObservations', 3500)
+        && isValidOptString(data, 'recommendedNextSteps', 3000)
+        && data.status is string && data.status == 'approved'
+        && data.approvedAt is timestamp
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidHomework(data) {
+      return data.keys().hasAll([
+          'teacherId', 'studentId', 'studentName', 'subject', 'title',
+          'dueDate', 'status', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'teacherId', 'studentId', 'studentName', 'subject', 'title',
+          'instructions', 'questionsOrTasks', 'assignedDate', 'dueDate',
+          'status', 'supportingLinks', 'lessonPlanId', 'classReportId',
+          'submittedDate', 'studentWorkSummary', 'submissionLinks',
+          'score', 'feedback', 'areasForImprovement',
+          'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.teacherId)
+        && data.teacherId == request.auth.uid
+        && isValidId(data.studentId)
+        && data.studentName is string && data.studentName.size() >= 1 && data.studentName.size() <= 120
+        && isValidSubject(data.subject)
+        && data.title is string && data.title.size() >= 1 && data.title.size() <= 200
+        && isValidOptString(data, 'instructions', 3000)
+        && isValidOptString(data, 'questionsOrTasks', 4000)
+        && isValidOptDateStr(data, 'assignedDate')
+        && isValidDateStr(data.dueDate)
+        && data.status is string && data.status.size() >= 1 && data.status.size() <= 20
+        && data.status in ['assigned', 'submitted', 'under_review', 'completed', 'overdue', 'pending', 'reviewed']
+        && isValidHomeworkLinkList(data, 'supportingLinks')
+        && isValidOptId(data, 'lessonPlanId')
+        && isValidOptId(data, 'classReportId')
+        && isValidOptDateStr(data, 'submittedDate')
+        && isValidOptString(data, 'studentWorkSummary', 4000)
+        && isValidHomeworkLinkList(data, 'submissionLinks')
+        && isValidOptString(data, 'score', 80)
+        && isValidOptString(data, 'feedback', 2500)
+        && isValidOptString(data, 'areasForImprovement', 2000)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidResource(data) {
+      return data.keys().hasAll([
+          'teacherId', 'studentId', 'subject', 'title', 'resourceType',
+          'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'teacherId', 'studentId', 'subject', 'title', 'resourceType',
+          'url', 'notes', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.teacherId)
+        && data.teacherId == request.auth.uid
+        && isValidId(data.studentId)
+        && isValidSubject(data.subject)
+        && data.title is string && data.title.size() >= 1 && data.title.size() <= 200
+        && data.resourceType is string && data.resourceType.size() >= 1 && data.resourceType.size() <= 20
+        && data.resourceType in ['worksheet', 'link', 'guide', 'exercise']
+        && isValidOptString(data, 'url', 500)
+        && isValidOptString(data, 'notes', 1000)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidMonthlyReport(data) {
+      return data.keys().hasAll([
+          'teacherId', 'studentId', 'studentName', 'monthKey', 'reportYear',
+          'reportMonth', 'reportingMonthLabel', 'subjectsCovered',
+          'completedClassesCount', 'approvedAiReportsCount', 'totalInstructionMinutes',
+          'homeworkAssignedCount', 'homeworkCompletedCount', 'homeworkOutstandingCount',
+          'status', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'teacherId', 'studentId', 'studentName', 'gradeAndAge',
+          'monthKey', 'reportYear', 'reportMonth', 'reportingMonthLabel', 'subjectsCovered',
+          'completedClassesCount', 'approvedAiReportsCount', 'totalInstructionMinutes',
+          'homeworkAssignedCount', 'homeworkCompletedCount', 'homeworkOutstandingCount',
+          'topicsCovered', 'skillsAndConceptsIntroduced', 'practicalActivitiesAndProjects',
+          'learningObjectivesAchieved', 'conceptUnderstanding', 'applicationOfLearning',
+          'participationAndEngagement', 'areasOfStrength', 'areasRequiringDevelopment',
+          'subjectAssessments', 'homeworkAssignedSummary', 'homeworkCompletionStatus',
+          'assessmentResultsAndFeedback', 'specificDifficultiesObserved',
+          'conceptsNeedingRevision', 'skillsRequiringPractice',
+          'overallMonthlyAssessment', 'progressMadeDuringMonth',
+          'recommendedTeachingApproachAndTargets', 'conclusion',
+          'status', 'approvedAt', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.teacherId)
+        && data.teacherId == request.auth.uid
+        && isValidId(data.studentId)
+        && data.studentName is string && data.studentName.size() >= 1 && data.studentName.size() <= 120
+        && isValidOptString(data, 'gradeAndAge', 160)
+        && isValidMonthKey(data.monthKey)
+        && isValidIntRange(data.reportYear, 2000, 2100)
+        && isValidIntRange(data.reportMonth, 1, 12)
+        && data.reportingMonthLabel is string && data.reportingMonthLabel.size() >= 1 && data.reportingMonthLabel.size() <= 40
+        && data.subjectsCovered is string && data.subjectsCovered.size() >= 1 && data.subjectsCovered.size() <= 120
+        && isValidIntRange(data.completedClassesCount, 0, 200)
+        && isValidIntRange(data.approvedAiReportsCount, 0, 200)
+        && isValidIntRange(data.totalInstructionMinutes, 0, 50000)
+        && isValidIntRange(data.homeworkAssignedCount, 0, 200)
+        && isValidIntRange(data.homeworkCompletedCount, 0, 200)
+        && isValidIntRange(data.homeworkOutstandingCount, 0, 200)
+        && isValidOptString(data, 'topicsCovered', 3500)
+        && isValidOptString(data, 'skillsAndConceptsIntroduced', 3500)
+        && isValidOptString(data, 'practicalActivitiesAndProjects', 4000)
+        && isValidOptString(data, 'learningObjectivesAchieved', 3500)
+        && isValidOptString(data, 'conceptUnderstanding', 3500)
+        && isValidOptString(data, 'applicationOfLearning', 3500)
+        && isValidOptString(data, 'participationAndEngagement', 3000)
+        && isValidOptString(data, 'areasOfStrength', 3500)
+        && isValidOptString(data, 'areasRequiringDevelopment', 3500)
+        && isValidSubjectAssessmentsList(data, 'subjectAssessments')
+        && isValidOptString(data, 'homeworkAssignedSummary', 3500)
+        && isValidOptString(data, 'homeworkCompletionStatus', 3500)
+        && isValidOptString(data, 'assessmentResultsAndFeedback', 3500)
+        && isValidOptString(data, 'specificDifficultiesObserved', 3500)
+        && isValidOptString(data, 'conceptsNeedingRevision', 3000)
+        && isValidOptString(data, 'skillsRequiringPractice', 3000)
+        && isValidOptString(data, 'overallMonthlyAssessment', 3500)
+        && isValidOptString(data, 'progressMadeDuringMonth', 3500)
+        && isValidOptString(data, 'recommendedTeachingApproachAndTargets', 3500)
+        && isValidOptString(data, 'conclusion', 3000)
+        && data.status is string && data.status in ['draft', 'approved']
+        && (
+          (data.status == 'draft' && !('approvedAt' in data))
+          || (data.status == 'approved' && 'approvedAt' in data && data.approvedAt is timestamp)
+        )
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidIntegration(data) {
+      return data.keys().hasAll([
+          'teacherId', 'catalogId', 'isCustom', 'name', 'category',
+          'iconKey', 'accentColor', 'integrationMethod', 'supportedMethods',
+          'status', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'teacherId', 'catalogId', 'isCustom', 'name', 'description',
+          'category', 'iconKey', 'accentColor', 'websiteUrl', 'loginUrl',
+          'apiDocsUrl', 'integrationMethod', 'supportedMethods', 'status',
+          'usageNotes', 'permissionsSummary', 'connectedAtIso',
+          'lastSyncedAtIso', 'pinnedToQuickLaunch', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.teacherId)
+        && data.teacherId == request.auth.uid
+        && data.catalogId is string && data.catalogId.size() >= 1 && data.catalogId.size() <= 80 && data.catalogId.matches('^[a-zA-Z0-9_\\-]+$')
+        && data.isCustom is bool
+        && data.name is string && data.name.size() >= 1 && data.name.size() <= 120
+        && isValidOptString(data, 'description', 600)
+        && isValidIntegrationCategory(data.category)
+        && data.iconKey is string && data.iconKey.size() >= 1 && data.iconKey.size() <= 40 && data.iconKey.matches('^[a-z0-9_\\-]+$')
+        && data.accentColor is string && data.accentColor in ['blue', 'indigo', 'violet', 'teal', 'emerald', 'orange', 'amber', 'rose', 'slate']
+        && isValidOptHttpUrl(data, 'websiteUrl')
+        && isValidOptHttpUrl(data, 'loginUrl')
+        && isValidOptHttpUrl(data, 'apiDocsUrl')
+        && isValidIntegrationMethod(data.integrationMethod)
+        && data.supportedMethods is list && data.supportedMethods.size() >= 1 && data.supportedMethods.size() <= 5
+        && data.supportedMethods[0] is string
+        && data.supportedMethods.hasOnly(['direct_link', 'oauth', 'api', 'webhook', 'custom'])
+        && data.status is string && data.status in ['connected', 'disconnected', 'configuration_required']
+        && isValidOptString(data, 'usageNotes', 1500)
+        && isValidOptString(data, 'permissionsSummary', 500)
+        && isValidOptString(data, 'connectedAtIso', 40)
+        && isValidOptString(data, 'lastSyncedAtIso', 40)
+        && (!('pinnedToQuickLaunch' in data) || data.pinnedToQuickLaunch is bool)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    // --- Collection Rules ---
+
+    match /teachers/{teacherId} {
+      allow get: if isValidId(teacherId) && isOwnerId(teacherId);
+      allow list: if false;
+      allow create: if isValidId(teacherId)
+        && isOwnerId(teacherId)
+        && isValidTeacherProfile(incoming())
+        && incoming().uid == teacherId
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(teacherId)
+        && isOwnerId(teacherId)
+        && isValidTeacherProfile(incoming())
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'email', 'updatedAt'])
+          || (
+            incoming().diff(existing()).affectedKeys().hasOnly(['seededDefaults', 'updatedAt'])
+            && incoming().seededDefaults == true
+          )
+        );
+      allow delete: if false;
+    }
+
+    match /students/{studentId} {
+      allow get: if isValidId(studentId)
+        && isVerifiedUser()
+        && existing().teacherId == request.auth.uid;
+      allow list: if isVerifiedUser()
+        && resource.data.teacherId == request.auth.uid;
+      allow create: if isValidId(studentId)
+        && isVerifiedUser()
+        && isValidStudent(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(studentId)
+        && isVerifiedUser()
+        && existing().teacherId == request.auth.uid
+        && isValidStudent(incoming())
+        && incoming().teacherId == existing().teacherId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'fullName', 'subjects', 'age', 'grade', 'school',
+            'ageGroup', 'guardianName', 'teachingNotes', 'learningGoals',
+            'progressSummary', 'mathLevel', 'techLevel', 'status', 'updatedAt'
+          ])
+          || incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt'])
+          || incoming().diff(existing()).affectedKeys().hasOnly([
+            'progressSummary', 'mathLevel', 'techLevel', 'learningGoals', 'updatedAt'
+          ])
+        );
+      allow delete: if isValidId(studentId)
+        && isVerifiedUser()
+        && existing().teacherId == request.auth.uid;
+    }
+
+    match /lessonPlans/{planId} {
+      allow get: if isValidId(planId)
+        && isVerifiedUser()
+        && existing().teacherId == request.auth.uid;
+      allow list: if isVerifiedUser()
+        && resource.data.teacherId == request.auth.uid;
+      allow create: if isValidId(planId)
+        && isVerifiedUser()
+        && isValidLessonPlan(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && ownsStudent(incoming().studentId);
+      allow update: if isValidId(planId)
+        && isVerifiedUser()
+        && existing().teacherId == request.auth.uid
+        && isValidLessonPlan(incoming())
+        && incoming().teacherId == existing().teacherId
+        && incoming().studentId == existing().studentId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'studentName', 'subject', 'topic', 'scheduledDate', 'scheduledTime',
+            'durationMinutes', 'learningObjectives', 'previousKnowledge',
+            'lessonIntroduction', 'teachingMaterials', 'activities',
+            'practicalExercises', 'classwork', 'homework', 'expectedOutcomes',
+            'status', 'updatedAt'
+          ])
+          || incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt'])
+        );
+      allow delete: if isValidId(planId)
+        && isVerifiedUser()
+        && existing().teacherId == request.auth.uid;
+    }
+
+    match /classReports/{reportId} {
+      allow get: if isValidId(reportId)
+        && isVerifiedUser()
+        && existing().teacherId == request.auth.uid;
+      allow list: if isVerifiedUser()
+        && resource.data.teacherId == request.auth.uid;
+      allow create: if isValidId(reportId)
+        && isVerifiedUser()
+        && isValidClassReport(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && ownsStudent(incoming().studentId);
+      allow update: if isValidId(reportId)
+        && isVerifiedUser()
+        && existing().teacherId == request.auth.uid
+        && isValidClassReport(incoming())
+        && incoming().teacherId == existing().teacherId
+        && incoming().studentId == existing().studentId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (existing().status != 'completed' || incoming().status != 'in_progress')
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'subject', 'lessonPlanId', 'topic', 'sessionDate', 'durationMinutes',
+          'objectivesCovered', 'conceptsTaught', 'activitiesCompleted',
+          'practicalExercisesPerformed', 'classworkGiven', 'studentParticipation',
+          'understoodWell', 'struggledWith', 'challengesEncountered',
+          'homeworkAssigned', 'teacherObservations', 'recommendationsNextFocus',
+          'notes', 'progressNotes', 'understandingLevel', 'status', 'updatedAt'
+        ]);
+      allow delete: if isValidId(reportId)
+        && isVerifiedUser()
+        && existing().teacherId == request.auth.uid;
+    }
+
+    match /aiReports/{aiReportId} {
+      allow get: if isValidId(aiReportId)
+        && isVerifiedUser()
+        && existing().teacherId == request.auth.uid;
+      allow list: if isVerifiedUser()
+        && resource.data.teacherId == request.auth.uid;
+      allow create: if isValidId(aiReportId)
+        && isVerifiedUser()
+        && isValidApprovedAiReport(incoming())
+        && incoming().approvedAt == request.time
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && ownsStudent(incoming().studentId)
+        && ownsClassReport(incoming().classReportId);
+      allow update: if isValidId(aiReportId)
+        && isVerifiedUser()
+        && existing().teacherId == request.auth.uid
+        && isValidApprovedAiReport(incoming())
+        && incoming().teacherId == existing().teacherId
+        && incoming().studentId == existing().studentId
+        && incoming().classReportId == existing().classReportId
+        && incoming().approvedAt == existing().approvedAt
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'studentName', 'subject', 'lessonTopic', 'dateAndDuration', 'sessionDate',
+          'learningObjectivesCovered', 'conceptsTaught',
+          'activitiesAndExercisesCompleted', 'studentParticipation',
+          'demonstratedUnderstanding', 'areasRequiringImprovement',
+          'challengesEncountered', 'homeworkAssigned',
+          'teacherObservations', 'recommendedNextSteps', 'updatedAt'
+        ]);
+      allow delete: if isValidId(aiReportId)
+        && isVerifiedUser()
+        && existing().teacherId == request.auth.uid;
+    }
+
+    match /homework/{homeworkId} {
+      allow get: if isValidId(homeworkId)
+        && isVerifiedUser()
+        && existing().teacherId == request.auth.uid;
+      allow list: if isVerifiedUser()
+        && resource.data.teacherId == request.auth.uid;
+      allow create: if isValidId(homeworkId)
+        && isVerifiedUser()
+        && isValidHomework(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && ownsStudent(incoming().studentId);
+      allow update: if isValidId(homeworkId)
+        && isVerifiedUser()
+        && existing().teacherId == request.auth.uid
+        && isValidHomework(incoming())
+        && incoming().teacherId == existing().teacherId
+        && incoming().studentId == existing().studentId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          // Action: Quick status update
+          incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt'])
+          || incoming().diff(existing()).affectedKeys().hasOnly(['status', 'submittedDate', 'updatedAt'])
+          // Action: Submission & Teacher Assessment
+          || incoming().diff(existing()).affectedKeys().hasOnly([
+            'status', 'submittedDate', 'studentWorkSummary', 'submissionLinks',
+            'score', 'feedback', 'areasForImprovement', 'updatedAt'
+          ])
+          // Action: Full assignment edit
+          || incoming().diff(existing()).affectedKeys().hasOnly([
+            'studentName', 'subject', 'title', 'instructions', 'questionsOrTasks',
+            'assignedDate', 'dueDate', 'status', 'supportingLinks',
+            'lessonPlanId', 'classReportId',
+            'submittedDate', 'studentWorkSummary', 'submissionLinks',
+            'score', 'feedback', 'areasForImprovement', 'updatedAt'
+          ])
+        );
+      allow delete: if isValidId(homeworkId)
+        && isVerifiedUser()
+        && existing().teacherId == request.auth.uid;
+    }
+
+    match /resources/{resourceId} {
+      allow get: if isValidId(resourceId)
+        && isVerifiedUser()
+        && existing().teacherId == request.auth.uid;
+      allow list: if isVerifiedUser()
+        && resource.data.teacherId == request.auth.uid;
+      allow create: if isValidId(resourceId)
+        && isVerifiedUser()
+        && isValidResource(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && ownsStudent(incoming().studentId);
+      allow update: if isValidId(resourceId)
+        && isVerifiedUser()
+        && existing().teacherId == request.auth.uid
+        && isValidResource(incoming())
+        && incoming().teacherId == existing().teacherId
+        && incoming().studentId == existing().studentId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'subject', 'title', 'resourceType', 'url', 'notes', 'updatedAt'
+        ]);
+      allow delete: if isValidId(resourceId)
+        && isVerifiedUser()
+        && existing().teacherId == request.auth.uid;
+    }
+
+    match /monthlyReports/{monthlyReportId} {
+      allow get: if isValidId(monthlyReportId)
+        && isVerifiedUser()
+        && existing().teacherId == request.auth.uid;
+      allow list: if isVerifiedUser()
+        && resource.data.teacherId == request.auth.uid;
+      allow create: if isValidId(monthlyReportId)
+        && isVerifiedUser()
+        && isValidMonthlyReport(incoming())
+        && (
+          (incoming().status == 'draft' && !('approvedAt' in incoming()))
+          || (incoming().status == 'approved' && incoming().approvedAt == request.time)
+        )
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && ownsStudent(incoming().studentId);
+      allow update: if isValidId(monthlyReportId)
+        && isVerifiedUser()
+        && existing().teacherId == request.auth.uid
+        && isValidMonthlyReport(incoming())
+        && incoming().teacherId == existing().teacherId
+        && incoming().studentId == existing().studentId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          // Action: Edit draft monthly report
+          (
+            existing().status == 'draft'
+            && incoming().status == 'draft'
+            && !('approvedAt' in incoming())
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'studentName', 'gradeAndAge', 'monthKey', 'reportYear', 'reportMonth',
+              'reportingMonthLabel', 'subjectsCovered',
+              'completedClassesCount', 'approvedAiReportsCount', 'totalInstructionMinutes',
+              'homeworkAssignedCount', 'homeworkCompletedCount', 'homeworkOutstandingCount',
+              'topicsCovered', 'skillsAndConceptsIntroduced', 'practicalActivitiesAndProjects',
+              'learningObjectivesAchieved', 'conceptUnderstanding', 'applicationOfLearning',
+              'participationAndEngagement', 'areasOfStrength', 'areasRequiringDevelopment',
+              'subjectAssessments', 'homeworkAssignedSummary', 'homeworkCompletionStatus',
+              'assessmentResultsAndFeedback', 'specificDifficultiesObserved',
+              'conceptsNeedingRevision', 'skillsRequiringPractice',
+              'overallMonthlyAssessment', 'progressMadeDuringMonth',
+              'recommendedTeachingApproachAndTargets', 'conclusion', 'updatedAt'
+            ])
+          )
+          // Action: Approve draft monthly report (locks status transition)
+          || (
+            existing().status == 'draft'
+            && incoming().status == 'approved'
+            && incoming().approvedAt == request.time
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'studentName', 'gradeAndAge', 'monthKey', 'reportYear', 'reportMonth',
+              'reportingMonthLabel', 'subjectsCovered',
+              'completedClassesCount', 'approvedAiReportsCount', 'totalInstructionMinutes',
+              'homeworkAssignedCount', 'homeworkCompletedCount', 'homeworkOutstandingCount',
+              'topicsCovered', 'skillsAndConceptsIntroduced', 'practicalActivitiesAndProjects',
+              'learningObjectivesAchieved', 'conceptUnderstanding', 'applicationOfLearning',
+              'participationAndEngagement', 'areasOfStrength', 'areasRequiringDevelopment',
+              'subjectAssessments', 'homeworkAssignedSummary', 'homeworkCompletionStatus',
+              'assessmentResultsAndFeedback', 'specificDifficultiesObserved',
+              'conceptsNeedingRevision', 'skillsRequiringPractice',
+              'overallMonthlyAssessment', 'progressMadeDuringMonth',
+              'recommendedTeachingApproachAndTargets', 'conclusion',
+              'status', 'approvedAt', 'updatedAt'
+            ])
+          )
+        );
+      allow delete: if isValidId(monthlyReportId)
+        && isVerifiedUser()
+        && existing().teacherId == request.auth.uid;
+    }
+
+    match /integrations/{integrationId} {
+      allow get: if isValidId(integrationId)
+        && isVerifiedUser()
+        && existing().teacherId == request.auth.uid;
+      allow list: if isVerifiedUser()
+        && resource.data.teacherId == request.auth.uid;
+      allow create: if isValidId(integrationId)
+        && isVerifiedUser()
+        && isValidIntegration(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(integrationId)
+        && isVerifiedUser()
+        && existing().teacherId == request.auth.uid
+        && isValidIntegration(incoming())
+        && incoming().teacherId == existing().teacherId
+        && incoming().catalogId == existing().catalogId
+        && incoming().isCustom == existing().isCustom
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'name', 'description', 'category', 'iconKey', 'accentColor',
+          'websiteUrl', 'loginUrl', 'apiDocsUrl', 'integrationMethod',
+          'supportedMethods', 'status', 'usageNotes', 'permissionsSummary',
+          'connectedAtIso', 'lastSyncedAtIso', 'pinnedToQuickLaunch', 'updatedAt'
+        ]);
+      allow delete: if isValidId(integrationId)
+        && isVerifiedUser()
+        && existing().teacherId == request.auth.uid;
+    }
+  }
+}
